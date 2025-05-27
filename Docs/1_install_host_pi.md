@@ -160,4 +160,4 @@ This guide walks you through configuring a Raspberry Pi 4B (8GB RAM) as a host f
 
 ---
 
-Your Raspberry Pi is now a functional Proxmox VE 8 ARM64 host named `cantainer`. Next step: [2\_s](./2_setup_vm_klipper.md)[2_setup\_vm\_klipper.md](./2_setup_vm_klipper.md)
+Your Raspberry Pi is now a functional Proxmox VE 8 ARM64 host named `cantainer`. Next step: [2\_s](./2_setup_vm_klipper.md)[2\_setup\_vm\_klipper.md](./2_setup_vm_klipper.md)
