@@ -1,141 +1,163 @@
-Setting up the Raspberry Pi 4B as a Pimox 8 Host
+# Setting up the Raspberry Pi 4B as a Pimox 8 Host
 
 This guide walks you through configuring a Raspberry Pi 4B (8GB RAM) as a host for Pimox 8 using Raspberry Pi OS Lite 64-bit and Proxmox VE 8 for ARM64.
 
-Requirements
+## Requirements
 
-Raspberry Pi 4B with 8GB RAM (or compatible Pi with sufficient RAM)
+* Raspberry Pi 4B with 8GB RAM (or compatible Pi with sufficient RAM)
+* Raspberry Pi Imager
+* Raspberry Pi OS 64-bit Lite (Debian 12 Bookworm)
+* Reliable microSD or USB storage
+* Ethernet or Wi-Fi network
 
-Raspberry Pi Imager
+## Flash Raspberry Pi OS Lite
 
-Raspberry Pi OS 64-bit Lite (Debian 12 Bookworm)
+1. **Download tools:**
 
-Reliable microSD or USB storage
+   * Raspberry Pi Imager: [https://www.raspberrypi.com/software/](https://www.raspberrypi.com/software/)
+   * Raspberry Pi OS Lite 64-bit image: [Direct link](https://www.raspberrypi.com/software/operating-systems/#raspberry-pi-os-64-bit)
 
-Ethernet or Wi-Fi network
+2. **Use Raspberry Pi Imager:**
 
-Flash Raspberry Pi OS Lite
+   * Choose OS → Scroll to bottom → *Use Custom* → Select `2024-11-19-raspios-bookworm-arm64-lite.img.xz`
+   * Choose storage → Your USB/SD device
+   * Click the gear icon:
 
-Download tools:
+     * Set **hostname**: `cantainer`
+     * **Enable SSH**
+     * **Set username/password**: `cantainer` / your-password
+   * Click **Write** and flash the image.
 
-Raspberry Pi Imager: https://www.raspberrypi.com/software/
+3. **Boot your Pi**
 
-Raspberry Pi OS Lite 64-bit image: Direct link
+   * Insert the storage into your Pi and power it on.
+   * SSH into the Pi from your Windows machine:
 
-Use Raspberry Pi Imager:
+     ```bash
+     ssh cantainer@<your-pi-ip>
+     ```
 
-Choose OS → Scroll to bottom → Use Custom → Select 2024-11-19-raspios-bookworm-arm64-lite.img.xz
+## Prepare the Pi
 
-Choose storage → Your USB/SD device
+1. **Set root password:**
 
-Click the gear icon:
+   ```bash
+   sudo passwd root
+   sudo su -
+   ```
 
-Set hostname: cantainer
+2. **Install utilities:**
 
-Enable SSH
+   ```bash
+   apt install -y neofetch tmux chrony ifupdown2
+   ```
 
-Set username/password: cantainer / your-password
+3. **Start tmux session (optional):**
 
-Click Write and flash the image.
+   ```bash
+   tmux new -s pimoxinstall
+   ```
 
-Boot your Pi
+4. **Update and upgrade:**
 
-Insert the storage into your Pi and power it on.
+   ```bash
+   apt update && apt upgrade -y
+   reboot
+   ```
 
-SSH into the Pi from your Windows machine:
+5. **SSH back in and switch to root:**
 
-ssh cantainer@<your-pi-ip>
+   ```bash
+   sudo su -
+   ```
 
-Prepare the Pi
+## Install Proxmox VE 8 (ARM64)
 
-Set root password:
+1. **Add Proxmox mirror key:**
 
-sudo passwd root
-sudo su -
+   ```bash
+   curl https://mirrors.apqa.cn/proxmox/debian/pveport.gpg -o /etc/apt/trusted.gpg.d/pveport.gpg
+   ```
 
-Install utilities:
+2. **Add Proxmox repo:**
 
-apt install -y neofetch tmux chrony ifupdown2
+   ```bash
+   echo "deb https://mirrors.apqa.cn/proxmox/debian/pve bookworm port" > /etc/apt/sources.list.d/pveport.list
+   apt update && apt full-upgrade
+   ```
 
-Start tmux session (optional):
+3. **Update /etc/hosts:**
 
-tmux new -s pimoxinstall
+   ```bash
+   nano /etc/hosts
+   ```
 
-Update and upgrade:
+   * Comment out `127.0.1.1` if it exists.
+   * Ensure correct IP and hostname mapping for `cantainer`.
 
-apt update && apt upgrade -y
-reboot
+4. **Install PVE packages:**
 
-SSH back in and switch to root:
+   ```bash
+   apt install -y proxmox-ve postfix open-iscsi
+   ```
 
-sudo su -
+   * When prompted by postfix, choose **Local only** and enter hostname `cantainer`
 
-Install Proxmox VE 8 (ARM64)
+5. **Reboot:**
 
-Add Proxmox mirror key:
+   ```bash
+   reboot
+   ```
 
-curl https://mirrors.apqa.cn/proxmox/debian/pveport.gpg -o /etc/apt/trusted.gpg.d/pveport.gpg
+## Post-install Configuration
 
-Add Proxmox repo:
+1. **Verify system is up to date:**
 
-echo "deb https://mirrors.apqa.cn/proxmox/debian/pve bookworm port" > /etc/apt/sources.list.d/pveport.list
-apt update && apt full-upgrade
+   ```bash
+   apt update
+   ```
 
-Update /etc/hosts:
+2. **Disable Proxmox subscription nag screen:**
 
-nano /etc/hosts
+   ```bash
+   sed -Ezi.bak "s/(Ext.Msg.show\\(\\{\\s+title: gettext\\('No valid sub)/void\\(\\{ \\/\\/\\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
+   ```
 
-Comment out 127.0.1.1 if it exists.
+3. **Increase swap size:**
 
-Ensure correct IP and hostname mapping for cantainer.
+   ```bash
+   nano /etc/dphys-swapfile
+   # Set: CONF_SWAPSIZE=1024
+   reboot
+   ```
 
-Install PVE packages:
+4. **Enable memory stats for containers:**
 
-apt install -y proxmox-ve postfix open-iscsi
+   ```bash
+   nano /boot/firmware/cmdline.txt
+   # Append: cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1
+   ```
 
-When prompted by postfix, choose Local only and enter hostname cantainer
+5. **Check system info:**
 
-Reboot:
+   ```bash
+   neofetch
+   ```
 
-reboot
+6. **Verify timezone and chrony:**
 
-Post-install Configuration
+   ```bash
+   timedatectl
+   chronyc sources
+   # Chrony config: /etc/chrony/chrony.conf
+   ```
 
-Verify system is up to date:
+7. **Login to Proxmox Web UI**
 
-apt update
+   * Go to `https://<pi-ip>:8006`
+   * Login as `root` with your set password
+   * Configure bridge, storage, and VM settings as needed.
 
-Disable Proxmox subscription nag screen:
+---
 
-sed -Ezi.bak "s/(Ext.Msg.show\\(\\{\\s+title: gettext\\('No valid sub)/void\\(\\{ \\/\\/\\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
-
-Increase swap size:
-
-nano /etc/dphys-swapfile
-# Set: CONF_SWAPSIZE=1024
-reboot
-
-Enable memory stats for containers:
-
-nano /boot/firmware/cmdline.txt
-# Append: cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1
-
-Check system info:
-
-neofetch
-
-Verify timezone and chrony:
-
-timedatectl
-chronyc sources
-# Chrony config: /etc/chrony/chrony.conf
-
-Login to Proxmox Web UI
-
-Go to https://<pi-ip>:8006
-
-Login as root with your set password
-
-Configure bridge, storage, and VM settings as needed.
-
-Your Raspberry Pi is now a functional Proxmox VE 8 ARM64 host named cantainer. Next step: setup_vm_klipper.md
+Your Raspberry Pi is now a functional Proxmox VE 8 ARM64 host named `cantainer`. Next step: [setup\_vm\_klipper.md](./setup_vm_klipper.md)
