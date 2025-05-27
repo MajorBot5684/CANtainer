@@ -128,4 +128,4 @@ You now have a clean Ubuntu VM ready to install Klipper and interact with CAN-co
 
 ---
 
-**Next step:** Set up the CAN interface inside the VM → see `docs/can_interface_setup.md`
+**Next step:** Set up the CAN interface inside the VM → see [can\_interface\_setup.md](./3_can_interface_setup.md)
