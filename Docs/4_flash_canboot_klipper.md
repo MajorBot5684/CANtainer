@@ -1,72 +1,55 @@
-Flashing CANboot and Klipper Firmware on Devices
-This guide covers flashing your CAN devices (Octopus, EBB42, and Cartographer probe) with CANboot and Klipper firmware from within your Pimox VM environment.
+# Setting up the Klipper VM on Pimox 8
 
-Prerequisites
-Pimox 8 VM running Ubuntu 24.04 Server LTS (headless)
+This guide explains how to create and configure a Ubuntu 24.04 Server LTS VM to run Klipper on your Pimox 8 host (`cantainer`).
 
-USB passthrough enabled for the Octopus board acting as a CAN adapter
+---
 
-can0 interface configured and up (see can_interface_setup.md)
+## Prerequisites
 
-flash_can.py script from the Cartographer3D repository
+- Pimox 8 installed and running on Raspberry Pi host (`cantainer`)
+- Access to Proxmox web GUI at `https://<pi-ip>:8006`
+- Ubuntu 24.04 Server LTS (64-bit ARM) ISO downloaded and uploaded to Proxmox ISO storage
 
-Access to Cartographer prebuilt firmware files
+---
 
-Step 1: Prepare the VM Environment
-Make sure your CAN interface is up and reachable:
+## Step 1: Upload Ubuntu ISO to Proxmox
 
-bash
-Copy
-Edit
-ip link set can0 up type can bitrate 1000000
-ifconfig can0 txqueuelen 1000
-Check CAN devices:
+1. Log into the Proxmox web GUI.
+2. Select the `cantainer` node.
+3. Go to **Storage** → your ISO storage.
+4. Click **Upload**, select the Ubuntu 24.04 Server ARM64 ISO, and upload.
 
-bash
-Copy
-Edit
-sudo python3 scripts/detect-can-devices.sh
-You should see the Octopus, EBB42, and Cartographer probe listed (UUIDs will vary).
+---
 
-Step 2: Flash Octopus and EBB42 with CANboot and Klipper
-Use the flash_can.py script to flash the Octopus and EBB42 boards:
+## Step 2: Create the Klipper VM
 
-bash
-Copy
-Edit
-python3 flash_can.py --device octopus --firmware klipper
-python3 flash_can.py --device ebb42 --firmware klipper
-This flashes the latest Klipper CAN firmware onto the respective boards.
+1. Click **Create VM** on the top right.
+2. Enter VM ID and Name (e.g., `100` and `klipper`).
+3. Under **OS**:
+   - Select the uploaded Ubuntu 24.04 ISO.
+4. Under **System**:
+   - BIOS: Default (SeaBIOS)
+   - Machine: Default
+5. Under **Hard Disk**:
+   - Storage: Choose your preferred storage (e.g., local-lvm)
+   - Disk size: 20 GB (adjust as needed)
+   - Format: QCOW2
+6. Under **CPU**:
+   - Cores: 2
+7. Under **Memory**:
+   - RAM: 2048 MB
+8. Under **Network**:
+   - Model: VirtIO (paravirtualized)
+9. Click **Finish** to create the VM.
 
-Make sure you are running the script in the directory containing the firmware files or specify paths accordingly.
+---
 
-Step 3: Flash Cartographer Probe Firmware
-The Cartographer probe requires its own firmware flashing procedure, typically handled by the official Cartographer3D tools.
+## Step 3: Configure USB Passthrough for Octopus Board
 
-If you have already followed the USB to CAN flashing guide from the official docs:
+Your Octopus board will be connected via USB to the Raspberry Pi host and passed through to the VM:
 
-Cartographer USB to CANbus firmware switching
+1. SSH into your Pimox host (`cantainer`).
+2. Identify the Octopus USB device with:
 
-Then you can verify your probe firmware is active by checking CAN device detection output.
-
-Step 4: Verify Firmware
-After flashing, reset the devices or power cycle to ensure new firmware is loaded.
-
-Use CAN device detection again:
-
-bash
-Copy
-Edit
-sudo python3 scripts/detect-can-devices.sh
-Confirm that devices respond and have the correct firmware versions.
-
-Troubleshooting
-If devices do not appear on can0, ensure USB passthrough and CAN interface are properly configured.
-
-Re-run the setup-can-interface.sh script if necessary.
-
-Check dmesg and system logs for USB or CAN errors.
-
-Consult official Cartographer and Klipper documentation for firmware compatibility.
-
-Once flashing is complete, you can proceed to configure Klipper and Cartographer software (see cartographer_setup.md).
+   ```bash
+   lsusb
