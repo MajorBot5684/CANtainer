@@ -1,55 +1,105 @@
-# Setting up the Klipper VM on Pimox 8
+# Flashing CANboot and Klipper Firmware
 
-This guide explains how to create and configure a Ubuntu 24.04 Server LTS VM to run Klipper on your Pimox 8 host (`cantainer`).
+This guide walks through flashing all boards using CANboot and Klipper. You will flash:
+
+* **Octopus Pro 1.1** (as USB-to-CAN adapter and MCU)
+* **EBB42** toolhead board
+* **Cartographer** probe (with Cartographer software)
+
+You will flash everything from inside the Klipper VM.
 
 ---
 
 ## Prerequisites
 
-- Pimox 8 installed and running on Raspberry Pi host (`cantainer`)
-- Access to Proxmox web GUI at `https://<pi-ip>:8006`
-- Ubuntu 24.04 Server LTS (64-bit ARM) ISO downloaded and uploaded to Proxmox ISO storage
+* `can0` interface is configured and working in the VM
+* All devices are connected to the CAN bus
+* Octopus is connected to the VM via USB
+* All devices have been flashed previously with CANboot (see Cartographer docs)
 
 ---
 
-## Step 1: Upload Ubuntu ISO to Proxmox
+## Step 1: Install Dependencies
 
-1. Log into the Proxmox web GUI.
-2. Select the `cantainer` node.
-3. Go to **Storage** → your ISO storage.
-4. Click **Upload**, select the Ubuntu 24.04 Server ARM64 ISO, and upload.
+SSH into your Klipper VM and run:
 
----
+```bash
+sudo apt install -y git python3 python3-pip can-utils
+pip3 install pyserial intelhex
+```
 
-## Step 2: Create the Klipper VM
+Clone the flashing tools:
 
-1. Click **Create VM** on the top right.
-2. Enter VM ID and Name (e.g., `100` and `klipper`).
-3. Under **OS**:
-   - Select the uploaded Ubuntu 24.04 ISO.
-4. Under **System**:
-   - BIOS: Default (SeaBIOS)
-   - Machine: Default
-5. Under **Hard Disk**:
-   - Storage: Choose your preferred storage (e.g., local-lvm)
-   - Disk size: 20 GB (adjust as needed)
-   - Format: QCOW2
-6. Under **CPU**:
-   - Cores: 2
-7. Under **Memory**:
-   - RAM: 2048 MB
-8. Under **Network**:
-   - Model: VirtIO (paravirtualized)
-9. Click **Finish** to create the VM.
+```bash
+git clone https://github.com/Arksine/CanBoot.git
+cd CanBoot/scripts
+```
 
 ---
 
-## Step 3: Configure USB Passthrough for Octopus Board
+## Step 2: Identify Devices
 
-Your Octopus board will be connected via USB to the Raspberry Pi host and passed through to the VM:
+List all CANboot devices:
 
-1. SSH into your Pimox host (`cantainer`).
-2. Identify the Octopus USB device with:
+```bash
+python3 flash_can.py -i can0 -l
+```
 
-   ```bash
-   lsusb
+Note: UUIDs will vary each time. You can identify devices based on connection order or board behavior (e.g., unplug Cartographer and recheck list).
+
+---
+
+## Step 3: Flash Octopus and EBB42 with Klipper
+
+Get the appropriate Klipper `.bin` files from your Klipper repo `out/` folder or build them with `make menuconfig`.
+
+### Flash Octopus:
+
+```bash
+python3 flash_can.py -i can0 -u <octopus_uuid> -f ~/klipper/out/klipper.bin
+```
+
+### Flash EBB42:
+
+```bash
+python3 flash_can.py -i can0 -u <ebb42_uuid> -f ~/klipper/out/klipper.bin
+```
+
+Replace `<octopus_uuid>` and `<ebb42_uuid>` with values shown in the `-l` listing.
+
+---
+
+## Step 4: Flash Cartographer Probe
+
+Download the precompiled firmware or follow Cartographer’s official guide:
+
+* Guide: [https://docs.cartographer3d.com/cartographer-probe/firmware/firmware-switching/usb-to-canbus](https://docs.cartographer3d.com/cartographer-probe/firmware/firmware-switching/usb-to-canbus)
+* Repo: [https://github.com/Cartographer3D](https://github.com/Cartographer3D)
+
+Then flash the firmware:
+
+```bash
+python3 flash_can.py -i can0 -u <cartographer_uuid> -f path/to/cartographer-canbus.bin
+```
+
+---
+
+## Step 5: Verify Flash
+
+List devices again:
+
+```bash
+python3 flash_can.py -i can0 -l
+```
+
+Each should report a valid bootloader and firmware type. You can also verify by running Klipper and checking connection in your web UI.
+
+---
+
+## Bitrate Note
+
+All devices should use `1000000` as the CAN bitrate. Ensure this matches your `can0` setup.
+
+---
+
+Continue to [cartographer\_setup.md](./cartographer_setup.md) to configure the Cartographer probe.
